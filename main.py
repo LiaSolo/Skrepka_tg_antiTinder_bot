@@ -187,7 +187,7 @@ def start(message):
 @bot.message_handler(content_types=['text'])
 def text_worker(message):
     from_user = message.from_user
-    user = users[from_user.id]
+    user = users.setdefault(from_user.id, User(from_user.id, from_user.username, from_user.first_name))
 
     if message.text == 'Удалить анкету':
         bot.send_message(chat_id=user.tg_id,
