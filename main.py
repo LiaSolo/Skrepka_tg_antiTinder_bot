@@ -1,11 +1,10 @@
 import random
-
 from telebot import TeleBot
 from telebot.types import LinkPreviewOptions, ReplyKeyboardRemove
 from config import token
 from user import User
 from target import Target
-from enums import Targets, State
+from enums import Targets, State, Tags
 from keyboards import get_keyboard_delete_profile, get_keyboard_tags, get_keyboard_targets, get_keyboard_for_tag, \
     get_static_keyboard, tags_with_keyboard, text_messages
 
@@ -15,43 +14,33 @@ bot = TeleBot(token)
 
 def get_phantoms(targs):
     kim = User(111, 'username', 'Kim')
-    kim.targets += [targs['CINEMA'].name, targs['RELATIONSHIP'].name, targs['FRIENDS'].name]
     kim.tags = {'SEX': 'FEMALE', 'AGE': random.randint(18, 35)}
 
     lola = User(222, 'username', 'Lola')
-    lola.targets += [targs['RELATIONSHIP'].name, targs['FRIENDS'].name, targs['TRAVEL'].name]
     lola.tags = {'SEX': 'FEMALE', 'AGE': random.randint(18, 35)}
 
     tom = User(333, 'username', 'Tom')
-    tom.targets += [targs['FRIENDS'].name, targs['TRAVEL'].name, targs['MENTORING'].name]
     tom.tags = {'SEX': 'MALE', 'AGE': random.randint(18, 35)}
 
     alex = User(444, 'username', 'Alex')
-    alex.targets += [targs['TRAVEL'].name, targs['MENTORING'].name, targs['SPORT'].name]
     alex.tags = {'SEX': 'MALE', 'AGE': random.randint(18, 35)}
 
     oleg = User(555, 'username', 'Oleg')
-    oleg.targets += [targs['MENTORING'].name, targs['SPORT'].name, targs['COWORKING'].name]
     oleg.tags = {'SEX': 'MALE', 'AGE': random.randint(18, 35)}
 
     sonya = User(666, 'username', 'Sonya')
-    sonya.targets += [targs['SPORT'].name, targs['COWORKING'].name, targs['SHOPPING'].name]
     sonya.tags = {'SEX': 'FEMALE', 'AGE': random.randint(18, 35)}
 
     emma = User(777, 'username', 'Emma')
-    emma.targets += [targs['COWORKING'].name, targs['SHOPPING'].name, targs['DOG_WALKING'].name]
     emma.tags = {'SEX': 'FEMALE', 'AGE': random.randint(18, 35)}
 
     mark = User(888, 'username', 'Mark')
-    mark.targets += [targs['SHOPPING'].name, targs['DOG_WALKING'].name, targs['OUTDOOR_RECREATION'].name]
     mark.tags = {'SEX': 'MALE', 'AGE': random.randint(18, 35)}
 
     bob = User(999, 'username', 'Bob')
-    bob.targets += [targs['WALKING'].name, targs['EVENTS'].name, targs['CONVERSATION'].name]
     bob.tags = {'SEX': 'MALE', 'AGE': random.randint(18, 35)}
 
     viktor = User(59278868, 'VitOK', 'Viktor')
-    viktor.targets += [target for target in targs]
     viktor.tags = {'SEX': 'MALE', 'AGE': random.randint(18, 35)}
 
     init_users = {111: kim,
@@ -64,6 +53,9 @@ def get_phantoms(targs):
                  888: mark,
                  999: bob,
                  59278868: viktor}
+
+    for usr in init_users:
+        init_users[usr].targets = [target for target in targs]
     return init_users
 
 
@@ -86,7 +78,9 @@ def check_compatibility(target_name: str, me: User, target_user: User):
     my_tags_for_target = targets[target_name].users_hold[me.tg_id]
 
     is_match = True
+    # print(target_name, me.name, target_user.name)
     for tag in my_tags_for_target:
+        # print(tag, is_match)
         if tag in target_user.tags:
             if tag == 'AGE':
                 temp_age_array = my_tags_for_target['AGE']
@@ -95,12 +89,13 @@ def check_compatibility(target_name: str, me: User, target_user: User):
                                                        my_tags_for_target['AGE'][1] + 1)]
                 if target_user.tags['AGE'] not in temp_age_array:
                     is_match = False
-                    continue
+                    break
             elif my_tags_for_target[tag] != target_user.tags[tag]:
                 is_match = False
-                continue
-        is_match = False
-        continue
+                break
+        else:
+            is_match = False
+            break
     return is_match
 
 
@@ -112,7 +107,6 @@ def find_people(target_name: str, user: User):
     # print('me', my_tags_for_target)
     for p in people_ids:
         target_user = users[p]
-        # print(target_user.name, target_user.tags)
         if check_compatibility(target_name, user, target_user) and \
                 check_compatibility(target_name, target_user, user):
             result_people.append(target_user)
