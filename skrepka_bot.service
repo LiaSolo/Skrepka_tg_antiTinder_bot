@@ -1,0 +1,6 @@
+[Service]
+ExecStart=/root/skrepka/Skrepka_tg_antiTinder_bot/start.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

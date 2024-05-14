@@ -28,13 +28,12 @@ def get_static_keyboard():
     return keyboard
 
 
-def get_keyboard_tags(user: User, flag: str, user_options_for_target=None):
+def get_keyboard_tags(flag: str, user_options):
     # flag: target | me
     keyboard = InlineKeyboardMarkup()
     for tag in Tags:
         # SEX in {'SEX': None} ?
-        if (flag == 'me' and tag.name in user.tags) or \
-                (flag == 'target' and tag.name in user_options_for_target):
+        if flag == 'me' and tag.name in user_options:
             text_button = f'✅{tag.value}'
         else:
             text_button = tag.value
@@ -45,29 +44,28 @@ def get_keyboard_tags(user: User, flag: str, user_options_for_target=None):
     return keyboard
 
 
-def get_keyboard_for_tag(user: User, tag: Tags, flag: str, user_options_for_tag=None):
+def get_keyboard_for_tag(user: User, tag: Tags, flag: str, user_options_for_tag: dict):
     # flag: target | me
     keyboard = InlineKeyboardMarkup()
     # if is_one_choice:
     if tag in tags_with_keyboard:
         options = tags_with_keyboard[tag]
         for opt in options:
-            if (flag == 'me' and opt.name == user.tags[tag.name]) or \
-                    (flag == 'target' and opt.name == user_options_for_tag):
+            if (opt.name == user_options_for_tag):
                 text_button = f'✅{opt.value}'
             else:
                 text_button = opt.value
             button = InlineKeyboardButton(text=text_button, callback_data=f'{flag} {tag.name} {opt.name}')
             keyboard.add(button)
-    button = InlineKeyboardButton(text='Не указывать', callback_data=f'{flag} {tag.name} None')
+    button = InlineKeyboardButton(text='Не указывать (любой)', callback_data=f'{flag} {tag.name} None')
     keyboard.add(button)
     return keyboard
 
 
-def get_keyboard_targets(user: User):
+def get_keyboard_targets(user: User, user_targets):
     keyboard = InlineKeyboardMarkup()
     for target in Targets:
-        if target.name in user.targets:
+        if target.name in user_targets:
             text_button = f'✅{target.value}'
         else:
             text_button = target.value
