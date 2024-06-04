@@ -1,7 +1,6 @@
 import psycopg2
 import json
 from user import User2
-from target import Target
 from enums import Targets
 from config import dbname, dbuser, password, host, port
 # запуск бота:
