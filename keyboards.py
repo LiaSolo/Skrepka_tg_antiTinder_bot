@@ -1,7 +1,6 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, \
     KeyboardButton, ReplyKeyboardMarkup
 from enums import Tags, Targets, Sex
-from user import User
 
 
 # тэг: какой класс определяет клавиатуру с единственным выбором
@@ -28,12 +27,12 @@ def get_static_keyboard():
     return keyboard
 
 
-def get_keyboard_tags(flag: str, user_options):
+def get_keyboard_tags(flag: str, user_options: dict):
     # flag: target | me
     keyboard = InlineKeyboardMarkup()
     for tag in Tags:
         # SEX in {'SEX': None} ?
-        if flag == 'me' and tag.name in user_options:
+        if tag.name in user_options:
             text_button = f'✅{tag.value}'
         else:
             text_button = tag.value
@@ -44,10 +43,9 @@ def get_keyboard_tags(flag: str, user_options):
     return keyboard
 
 
-def get_keyboard_for_tag(user: User, tag: Tags, flag: str, user_options_for_tag: dict):
+def get_keyboard_for_tag(tag: Tags, flag: str, user_options_for_tag: dict):
     # flag: target | me
     keyboard = InlineKeyboardMarkup()
-    # if is_one_choice:
     if tag in tags_with_keyboard:
         options = tags_with_keyboard[tag]
         for opt in options:
@@ -62,7 +60,7 @@ def get_keyboard_for_tag(user: User, tag: Tags, flag: str, user_options_for_tag:
     return keyboard
 
 
-def get_keyboard_targets(user: User, user_targets):
+def get_keyboard_targets(user_targets):
     keyboard = InlineKeyboardMarkup()
     for target in Targets:
         if target.name in user_targets:

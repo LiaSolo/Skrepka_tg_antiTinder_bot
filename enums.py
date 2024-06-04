@@ -2,17 +2,13 @@ from enum import Enum, auto
 
 
 class State(Enum):
-    ASK_NO_KEYBOARDS = auto()
-    ASK_SEX = auto()
     ASK_AGE = auto()
-    ASK_TARGETS = auto()
-    ASK_TARGETS_SEX = auto()
     ASK_TARGETS_AGE = auto()
-    SHOW_PEOPLE = auto()
 
 
 class Targets(Enum):
-    RELATIONSHIP = 'Серьезные отношения'
+    RELATIONSHIP = 'Отношения'
+    SERIOUS_RELATIONSHIP = 'Серьезные отношения'
     FRIENDS = 'Друзья'
     TRAVEL = 'Путешествовать вместе'
     MENTORING = 'Менторство'

@@ -1,6 +1,6 @@
 import psycopg2
 import json
-from user import User, User2
+from user import User2
 from target import Target
 from enums import Targets
 from config import dbname, dbuser, password, host, port
@@ -15,170 +15,108 @@ from config import dbname, dbuser, password, host, port
 # - выбраны настройки для целей (я выбрал)
 
 
-def get_users():
+# def get_users():
+#     conn = psycopg2.connect(dbname=dbname, user=dbuser,
+#                             password=password, host=host, port=port)
+#     cursor = conn.cursor()
+#     cursor.execute('SELECT * FROM users')
+#     conn.commit()
+#     pre_users = cursor.fetchall()
+#     cursor.close()
+#     conn.close()
+#     users = {}
+#     for usr in pre_users:
+#         user = User(usr[0], usr[2], usr[1], usr[3], usr[4])
+#         users[user.tg_id] = user
+#     return users
+
+
+def get_all_users():
     conn = psycopg2.connect(dbname=dbname, user=dbuser,
                             password=password, host=host, port=port)
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users')
+    cursor.execute('SELECT * FROM users_backup')
     conn.commit()
     pre_users = cursor.fetchall()
     cursor.close()
     conn.close()
-    users = {}
+    users = dict()
     for usr in pre_users:
-        user = User(usr[0], usr[2], usr[1], usr[3], usr[4])
+        user = User2(tg_id=usr[0], 
+                     name=usr[1],
+                     username=usr[2],             
+                     tags=usr[3], 
+                     targets=usr[4])
         users[user.tg_id] = user
     return users
 
 
-def get_one_user(tg_id : int):
+# def get_one_user2(tg_id : int) -> User2:
+#     conn = psycopg2.connect(dbname=dbname, user=dbuser,
+#                             password=password, host=host, port=port)
+#     cursor = conn.cursor()
+#     cursor.execute('SELECT * FROM users_backup WHERE tg_id = %s', (tg_id,))
+#     conn.commit()
+#     pre_user = cursor.fetchone()
+#     #print(pre_user)
+#     if not pre_user:
+#        return
+#     user = User2(tg_id=pre_user[0], 
+#                  name=pre_user[1],
+#                  username=pre_user[2],             
+#                  tags=pre_user[3], 
+#                  targets=pre_user[4])
+#     cursor.close()
+#     conn.close()
+#     return user
+   
+
+def create_user2(user: User2) -> None:
     conn = psycopg2.connect(dbname=dbname, user=dbuser,
                             password=password, host=host, port=port)
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE tg_id = %s', (tg_id,))
-    conn.commit()
-    pre_user = cursor.fetchone()
-    print(pre_user)
-    if not pre_user:
-       return
-    user = User(pre_user[0], pre_user[2], pre_user[1], pre_user[3], pre_user[4])
-    cursor.close()
-    conn.close()
-    return user
-
-
-def get_targets():
-    conn = psycopg2.connect(dbname=dbname, user=dbuser,
-                            password=password, host=host, port=port)
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM targets')
-    conn.commit()
-    pre_targets = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    targets = {}
-    for _target in pre_targets:
-        usr_hold = {}
-        for usr_key in _target[1]:
-            usr_hold[int(usr_key)] = _target[1][usr_key]
-        target = Target(_target[0], usr_hold)
-        targets[target.name] = target
-    return targets
-
-
-def get_one_target(target_name: str):
-    conn = psycopg2.connect(dbname=dbname, user=dbuser,
-                            password=password, host=host, port=port)
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM targets WHERE target_name = %s', (target_name,))
-    conn.commit()
-    pre_target = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    usr_hold = {}
-    for usr_key in pre_target[1]:
-        usr_hold[int(usr_key)] = pre_target[1][usr_key]
-    target = Target(pre_target[0], usr_hold)
-    return target
-
-
-def get_target_options_for_user(target_name: str, user_id: int):
-    conn = psycopg2.connect(dbname=dbname, user=dbuser,
-                            password=password, host=host, port=port)
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM targets WHERE target_name = %s', (target_name,))
-    conn.commit()
-    pre_target = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    if str(user_id) in pre_target[1]:
-        return [pre_target[0], pre_target[1][str(user_id)]]
-        # [target_name, {'SEX': 'MALE', 'AGE': [20, 25]}]
-    return
-    
-
-def add_new_target(target: Target):
-    conn = psycopg2.connect(dbname=dbname, user=dbuser,
-                            password=password, host=host, port=port)
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO targets (target_name, users_hold)'
-                   'VALUES (%s, %s)',
-                   (target.name, json.dumps(target.users_hold)))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-
-def create_user(user: User):
-    conn = psycopg2.connect(dbname=dbname, user=dbuser,
-                            password=password, host=host, port=port)
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO users (tg_id, name, username, tags, targets) '
+    cursor.execute('INSERT INTO users_backup (tg_id, name, username, tags, targets) '
                    'VALUES (%s, %s, %s, %s, %s)',
-                   (user.tg_id, user.name, user.username, json.dumps({}), []))
+                   (user.tg_id, user.name, user.username, json.dumps({}), json.dumps({})))
     conn.commit()
     cursor.close()
     conn.close()
 
 
-def delete_user(user: User):
+def delete_user(user: User2):
     conn = psycopg2.connect(dbname=dbname, user=dbuser,
                             password=password, host=host, port=port)
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM users WHERE tg_id = %s ',
+    cursor.execute('DELETE FROM users_backup WHERE tg_id = %s ',
                    (user.tg_id,))
     conn.commit()
     cursor.close()
     conn.close()
 
 
-def update_user_tags(user: User):
+def update_user_tags(user: User2):
     conn = psycopg2.connect(dbname=dbname, user=dbuser,
                             password=password, host=host, port=port)
     cursor = conn.cursor()
-    cursor.execute('UPDATE users SET tags = %s WHERE tg_id = %s ',
+    cursor.execute('UPDATE users_backup SET tags = %s WHERE tg_id = %s ',
                    (json.dumps(user.tags), user.tg_id))
     conn.commit()
     cursor.close()
     conn.close()
 
 
-def update_user_targets(user: User):
+def update_user_targets(user: User2):
     conn = psycopg2.connect(dbname=dbname, user=dbuser,
                             password=password, host=host, port=port)
     cursor = conn.cursor()
-    cursor.execute('UPDATE users SET targets = %s WHERE tg_id = %s ',
-                   (user.targets, user.tg_id))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-
-def update_user_target_wishlist(target: Target):
-    conn = psycopg2.connect(dbname=dbname, user=dbuser,
-                            password=password, host=host, port=port)
-    cursor = conn.cursor()
-    cursor.execute('UPDATE targets SET users_hold = %s WHERE target_name = %s ',
-                   (json.dumps(target.users_hold), target.name))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-
-def upd_users2_targets(user: User2):
-
-    conn = psycopg2.connect(dbname=dbname, user=dbuser,
-                                password=password, host=host, port=port)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users_backup SET targets = %s WHERE tg_id =%s;", 
+    cursor.execute('UPDATE users_backup SET targets = %s WHERE tg_id = %s ',
                    (json.dumps(user.targets), user.tg_id))
     conn.commit()
     cursor.close()
     conn.close()
 
 
-def get_users_by_target(target_name: str):
-    print(target_name)
+def get_users_by_target(target_name: str) -> dict:
     conn = psycopg2.connect(dbname=dbname, user=dbuser,
                                 password=password, host=host, port=port)
     cursor = conn.cursor()
@@ -186,7 +124,7 @@ def get_users_by_target(target_name: str):
                     (target_name,))
     conn.commit()
     pre_users = cursor.fetchall()
-    users = {}
+    users = dict()
     for usr in pre_users:
         user = User2(usr[0], usr[2], usr[1], usr[3], usr[4])
         users[user.tg_id] = user
@@ -252,3 +190,20 @@ def get_statistic():
     conn.commit()
     cursor.close()
     conn.close()
+
+
+# users = get_users()
+# users2 = {}
+# targets = get_targets()
+# for usr in users:
+#     user = users[usr]
+#     users2[usr] = User2(user.tg_id, user.username, user.name, user.tags)
+#     print(user.name)
+#     for t in user.targets:
+#         if usr in targets[t].users_hold:
+#             a = targets[t].users_hold[usr]
+#         else:
+#             a = {}
+#         print(t, a)
+#         users2[usr].targets[t] = a
+#     print(users2[usr].targets)

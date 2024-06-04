@@ -1,67 +1,58 @@
 from telebot import TeleBot
 from telebot.types import LinkPreviewOptions, ReplyKeyboardRemove
+from datetime import datetime
 from config import token
-from user import User
-# from target import Target
+from user import User2
 from enums import Targets, State, Tags
 from keyboards import get_keyboard_delete_profile, get_keyboard_tags, get_keyboard_targets, get_keyboard_for_tag, \
     get_static_keyboard, tags_with_keyboard, text_messages
-from db_worker import create_user, delete_user, update_user_target_wishlist, update_user_tags, update_user_targets, \
-    get_users, get_one_user, get_targets, get_one_target, get_target_options_for_user #, add_new_target
+from db_worker import create_user2, delete_user, update_user_tags, update_user_targets, \
+    get_all_users, get_users_by_target
 
 
 bot = TeleBot(token)
-# TODO: нахуй убрать таблицу targets, заменить users на users_backup
+
+users2 = get_all_users()
 
 
-messages_to_delete = {}
-non_tags_targets = {}
-temp_user_targets = {}
-temp_user_tags_for_current_target = {}
-temp_user_tags = {}
-user_state = {}
+def is_match_by_target(target_name: str, me: User2, target_user: User2) -> bool:
+    my_tags_for_target = me.targets[target_name]
+    target_user_tags = target_user.tags
 
-def check_compatibility(target_name: str, me: User, target_user: User):
-    targets = get_targets()
-    my_tags_for_target = targets[target_name].users_hold[me.tg_id]
-
-    is_match = True
     for tag in my_tags_for_target:
-        if tag in target_user.tags:
+        if tag in target_user_tags:
             if tag == 'AGE':
-                temp_age_array = my_tags_for_target['AGE']
                 if len(my_tags_for_target['AGE']) == 2:
-                    temp_age_array = [i for i in range(my_tags_for_target['AGE'][0],
-                                                       my_tags_for_target['AGE'][1] + 1)]
-                if target_user.tags['AGE'] not in temp_age_array:
-                    is_match = False
-                    break
-            elif my_tags_for_target[tag] != target_user.tags[tag]:
-                is_match = False
-                break
+                    min_age = my_tags_for_target['AGE'][0]
+                    max_age = my_tags_for_target['AGE'][1]
+                    if target_user_tags['AGE'] < min_age or target_user_tags['AGE'] > max_age:
+                        return False
+                elif target_user.tags['AGE'] != my_tags_for_target['AGE'][0]:
+                    return False
+
+            elif my_tags_for_target[tag] != target_user_tags[tag]:
+                return False
         else:
-            is_match = False
-            break
-    return is_match
+            return False
+    return True
 
 
-def find_people(target_name: str, user: User):
-    targets = get_targets()
-    people_ids = list(targets[target_name].users_hold.keys())
+
+def find_people_by_target(target_name: str, user: User2) -> list[User2]:
+
     result_people = []
-    people_ids.remove(user.tg_id)
-    users = get_users()
+    people = get_users_by_target(target_name)
+    del people[user.tg_id]
 
-    for p in people_ids:
-        target_user = users[p]
-        if check_compatibility(target_name, user, target_user) and \
-                check_compatibility(target_name, target_user, user):
+    for target_user in people.values():
+        if is_match_by_target(target_name, user, target_user) and \
+                is_match_by_target(target_name, target_user, user):
             result_people.append(target_user)
 
     return result_people
 
 
-def print_user_info(user: User):
+def print_user_info(user: User2):
     text = f'Имя: {user.name}\n'
     for tag in user.tags:
         if tag == 'AGE':
@@ -69,9 +60,9 @@ def print_user_info(user: User):
         else:
             text += f'{Tags[tag].value}: {tags_with_keyboard[Tags[tag]][user.tags[tag]].value}\n'
     text += 'Цели:\n\n'
-    targets = get_targets()
+    #targets = get_targets()
     for target in user.targets:
-        tags_for_target = targets[target].users_hold[user.tg_id]
+        tags_for_target = user.targets[target]
         text += f'*{Targets[target].value}*\n\n'
         if len(tags_for_target) > 0:
             text += 'Твои пожелания:\n'
@@ -88,7 +79,7 @@ def print_user_info(user: User):
     return text
 
 
-def print_results(target_name: str, people: list[User], tags_for_target):
+def print_results(target_name: str, people: list[User2], tags_for_target):
     text = f'*{Targets[target_name].value}*\n\n'
     if len(tags_for_target) > 0:
         text += 'Твои пожелания:\n'
@@ -112,26 +103,33 @@ def print_results(target_name: str, people: list[User], tags_for_target):
     return text
 
 
-def delete_profile(user: User):
+def delete_profile(user: User2):
     delete_user(user)
-    for tar in user.targets:
-        target = get_one_target(tar)
-        del target.users_hold[user.tg_id]
-        update_user_target_wishlist(target)
+    del users2[user.tg_id]
 
 
 @bot.message_handler(commands=['start'])
 def start(message):
+    log = ' || '
     from_user = message.from_user
-    user = get_one_user(from_user.id)
+    if from_user.id in users2:
+        user = users2[from_user.id]
+    else:
+        user = User2(tg_id=from_user.id,
+                    username=from_user.username, 
+                    name=from_user.first_name, 
+                    tags=dict(), 
+                    targets=dict())
+        create_user2(user)
+        users2[user.tg_id] = user
+        log += 'New user! '
 
-    if not user:
-        user = User(from_user.id, from_user.username, from_user.first_name)
-        create_user(user)
+    user.print_user()
+    log += f'{user.print_user()}\n'
+    now = str(datetime.now())
 
-    temp_user_tags[user.tg_id] = user.tags
-    temp_user_targets[user.tg_id] = user.targets
-    print('init', user.name, user.tags, user.targets)
+    with open('bot.logs', 'a') as log_file:
+            log_file.write(now + log)
     
     bot.send_message(user.tg_id, f'Привет, {user.name}', reply_markup=get_static_keyboard())
     bot.send_message(user.tg_id,
@@ -143,130 +141,142 @@ def start(message):
 @bot.message_handler(content_types=['text'])
 def text_worker(message):
     from_user = message.from_user
-    user = get_one_user(from_user.id)
 
-    if user:
-        if message.text == 'Удалить анкету':
-            bot.send_message(chat_id=user.tg_id,
-                             text="Уверен(а)?",
-                             reply_markup=get_keyboard_delete_profile())
-
-        elif message.text == 'Редактировать анкету':
-            temp_user_tags[user.tg_id] = user.tags
-            temp_user_targets[user.tg_id] = user.targets
-            bot.send_message(chat_id=user.tg_id,
-                             text="Расскажи что-нибудь о себе",
-                             reply_markup=get_keyboard_tags('me', user.tags))
-
-        elif message.text == 'Моя анкета':
-            bot.send_message(chat_id=user.tg_id,
-                             text=print_user_info(user),
-                             parse_mode='MarkdownV2')
-
-        elif user_state[user.tg_id] == State.ASK_AGE:
-            messages_to_delete[user.tg_id].append(message.id)
-            if message.text.isdigit():
-                temp_user_tags[user.tg_id]['AGE'] = int(message.text)
-
-                bot.delete_messages(chat_id=user.tg_id,
-                                    message_ids=messages_to_delete[user.tg_id])
-                del messages_to_delete[user.tg_id]
-                bot.send_message(user.tg_id,
-                                 text='Расскажи что-нибудь о себе',
-                                 reply_markup=get_keyboard_tags('me', temp_user_tags[user.tg_id]))
-                del user_state[user.tg_id]
-
-            else:
-                messages_to_delete[user.tg_id].append(message.id + 1)
-                bot.send_message(user.tg_id,
-                                 text="Некорректный ввод.\n"
-                                      "Введи свой возраст.")
-
-        elif user_state[user.tg_id] == State.ASK_TARGETS_AGE:
-            messages_to_delete[user.tg_id].append(message.id)
-            current_target = non_tags_targets[user.tg_id][0]
-
-            age = message.text.split()
-            if len(age) == 1 and age[0].isdigit() or \
-                    len(age) == 2 and age[0].isdigit() and age[1].isdigit() and int(age[1]) > int(age[0]):
-                temp_user_tags_for_current_target[user.tg_id][1]['AGE'] = list(map(int, age))
-
-                bot.delete_messages(chat_id=user.tg_id,
-                                    message_ids=messages_to_delete[user.tg_id])
-                del messages_to_delete[user.tg_id]
-
-                bot.send_message(user.tg_id,
-                                 text="Выбери, какие характеристики ты хочешь указать для цели"
-                                      f"\n{Targets[current_target].value}.",
-                                 reply_markup=get_keyboard_tags('target', temp_user_tags_for_current_target[user.tg_id][1]))
-                del user_state[user.tg_id]
-
-            else:
-                mess = bot.send_message(user.tg_id,
-                                        "Некорректный ввод.\n"
-                                        "Введи корректный возраст.")
-                messages_to_delete[user.tg_id].append(mess.message_id)
-
-        else:
-            bot.send_message(chat_id=user.tg_id,
-                             text="Неопознанная команда!")
+    if from_user.id in users2:
+        user = users2[from_user.id]
     else:
         bot.send_message(chat_id=from_user.id,
-                         text="Напиши /start для начала работы с ботом")
+                         text='Сначала необходимо зарегистрироваться.\n' \
+                              'Для этого нажмите /start')
+        return
+    
+    user.print_user()
+    log = f' || {user.tg_id}, message: {message.text}\n'
+    now = str(datetime.now())
+    with open('bot.logs', 'a') as log_file:
+            log_file.write(now + log)
+
+
+    if message.text == 'Удалить анкету':
+        bot.send_message(chat_id=user.tg_id,
+                            text="Уверен(а)?",
+                            reply_markup=get_keyboard_delete_profile())
+
+    elif message.text == 'Редактировать анкету':
+        bot.send_message(chat_id=user.tg_id,
+                            text="Расскажи что-нибудь о себе",
+                            reply_markup=get_keyboard_tags('me', user.tags))
+
+    elif message.text == 'Моя анкета':
+        bot.send_message(chat_id=user.tg_id,
+                            text=print_user_info(user),
+                            parse_mode='MarkdownV2')
+
+    elif user.state == State.ASK_AGE:
+        user.update_messages_to_delete(message.id)
+        if message.text.isdigit() and int(message.text) < 200:
+            user.tags['AGE'] = int(message.text)
+
+            bot.delete_messages(chat_id=user.tg_id,
+                                message_ids=user.messages_to_delete)
+            user.update_messages_to_delete(None)
+            bot.send_message(user.tg_id,
+                                text='Расскажи что-нибудь о себе',
+                                reply_markup=get_keyboard_tags('me', user.tags))
+            user.state = None
+
+        else:
+            user.update_messages_to_delete(message.id + 1)
+            bot.send_message(user.tg_id,
+                                text="Некорректный ввод.\n"
+                                     "Введи свой возраст.")
+
+    elif user.state == State.ASK_TARGETS_AGE:
+        user.update_messages_to_delete(message.id)
+        current_target = user.not_tagged_targets[0]
+
+        age = message.text.split()
+        if len(age) == 1 and age[0].isdigit() or \
+                len(age) == 2 and age[0].isdigit() and age[1].isdigit() and int(age[1]) > int(age[0]) and int(age[1]) < 200:
+            user.targets[current_target]['AGE'] = list(map(int, age))
+            
+
+            bot.delete_messages(chat_id=user.tg_id,
+                                message_ids=user.messages_to_delete)
+            user.update_messages_to_delete(None)
+
+            bot.send_message(user.tg_id,
+                                text="Выбери, какие характеристики ты хочешь указать для цели"
+                                    f"\n{Targets[current_target].value}.",
+                                reply_markup=get_keyboard_tags('target', user.targets[current_target]))
+            user.state = None
+
+        else:
+            mess = bot.send_message(user.tg_id,
+                                    "Некорректный ввод.\n"
+                                    "Введи корректный возраст.")
+            user.update_messages_to_delete(mess.message_id)
+
+    else:
+            bot.send_message(chat_id=user.tg_id,
+                             text="Неопознанная команда!")
 
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_worker(call):
-    parsed_data = call.data.split()
-    user = get_one_user(call.message.chat.id)
+    parsed_data = call.data.split() 
+
+    if call.message.chat.id in users2:
+        user = users2[call.message.chat.id]
+    else:
+        bot.send_message(chat_id=call.message.chat.id,
+                         text='Сначала необходимо зарегистрироваться.\n' \
+                              'Для этого нажмите /start')
+        return
+
+    user.print_user()
+    log = f' || {user.tg_id}, message: {call.data}\n'
+    now = str(datetime.now())
+    with open('bot.logs', 'a') as log_file:
+            log_file.write(now + log)
 
     if len(parsed_data) == 1:
         data = parsed_data[0]
 
         if data in Targets.__members__:
-            if data not in temp_user_targets[user.tg_id]:
-                temp_user_targets[user.tg_id].append(data)
-                #user_options_for_target[user.tg_id] = [data, {}]
-                #targets[data].users_hold[user.tg_id] = {}
+            if data not in user.targets:
+                user.targets[data] = dict()
             else:
-                temp_user_targets[user.tg_id].remove(data)
-                #del targets[data].users_hold[user.tg_id]
+                del user.targets[data]
                 
             bot.edit_message_reply_markup(chat_id=user.tg_id,
                                           message_id=call.message.id,
-                                          reply_markup=get_keyboard_targets(user, temp_user_targets[user.tg_id]))
+                                          reply_markup=get_keyboard_targets(user.targets))
 
         elif data == 'chosen_targets':
-            if len(temp_user_targets[user.tg_id]) == 0:
+            if len(user.targets) == 0:
                 mess = bot.send_message(chat_id=user.tg_id,
                                         text='Нужно выбрать хотя бы одну цель! '
                                              'Иначе зачем это всё?')
-                messages_to_delete.setdefault(user.tg_id, []).append(mess.message_id)
+                user.update_messages_to_delete(mess.message_id)
+
             else:
-                if user.tg_id in messages_to_delete:
+                if user.messages_to_delete:
                     bot.delete_messages(chat_id=user.tg_id,
-                                        message_ids=messages_to_delete[user.tg_id])
-                    del messages_to_delete[user.tg_id]
+                                        message_ids=user.messages_to_delete)
+                    user.update_messages_to_delete(None)
 
-                user.targets = temp_user_targets[user.tg_id]
                 update_user_targets(user)
-                non_tags_targets[user.tg_id] = temp_user_targets[user.tg_id]
-                current_target = non_tags_targets[user.tg_id][0]
+                user.not_tagged_targets = list(user.targets)
+                current_target = user.not_tagged_targets[0]
 
-                user_options_for_target = get_target_options_for_user(current_target, user.tg_id)
-                if not user_options_for_target:
-                    user_options_for_target = [current_target, {}]
-                temp_user_tags_for_current_target[user.tg_id] = user_options_for_target
-                #user_options_for_target = targets[current_target].users_hold.setdefault(user.tg_id, {})
-                
-                del temp_user_targets[user.tg_id]
-                
-                bot.delete_message(chat_id=user.tg_id,
-                                   message_id=call.message.id)
-                bot.send_message(chat_id=user.tg_id,
-                                 text="Выбери, какие характеристики ты хочешь указать для цели"
-                                      f"\n{Targets[current_target].value}.",
-                                 reply_markup=get_keyboard_tags('target', user_options_for_target[1]))
+                user_options_for_target = user.targets[current_target]
+
+                bot.edit_message_text(chat_id=user.tg_id,
+                                      message_id=call.message.id,
+                                      text="Выбери, какие характеристики ты хочешь указать для цели"
+                                           f"\n{Targets[current_target].value}.",
+                                           reply_markup=get_keyboard_tags('target', user_options_for_target))
 
         elif data == 'delete_profile':
             bot.delete_message(chat_id=user.tg_id,
@@ -286,105 +296,94 @@ def callback_worker(call):
 
         if flag == 'me':
             if data in Tags.__members__:
-                temp_user_tags[user.tg_id].setdefault(data, None)
-                user_options_for_tag = temp_user_tags[user.tg_id][data]
+                
+                user_options_for_tag = user.tags.setdefault(data, None)
 
                 bot.edit_message_text(chat_id=user.tg_id,
                                       message_id=call.message.id,
                                       text=text_messages[f'{data}-me'],
-                                      reply_markup=get_keyboard_for_tag(user, Tags[data], 'me', user_options_for_tag))
+                                      reply_markup=get_keyboard_for_tag(Tags[data], 'me', user_options_for_tag))
                 
                 if Tags[data] not in tags_with_keyboard:
-                    user_state[user.tg_id] = State[f'ASK_{data}']
-                    messages_to_delete[user.tg_id] = [call.message.id]
+                    user.state = State[f'ASK_{data}']
+                    user.update_messages_to_delete(call.message.id)
 
             elif data == 'chosen_tags':
-                user.tags = temp_user_tags[user.tg_id]
                 update_user_tags(user)
-                del temp_user_tags[user.tg_id]
-                temp_user_targets[user.tg_id] = user.targets
                 bot.edit_message_text(chat_id=user.tg_id,
                                       message_id=call.message.id,
                                       text='Выбери, для каких целей ты ищешь людей.',
-                                      reply_markup=get_keyboard_targets(user, temp_user_targets[user.tg_id]))
+                                      reply_markup=get_keyboard_targets(user.targets))
 
         elif flag == 'target':
             if data in Tags.__members__:
-                current_target = non_tags_targets[user.tg_id][0]
+                current_target = user.not_tagged_targets[0]
 
-                user_options_for_tag = temp_user_tags_for_current_target[user.tg_id][1].setdefault(data, None)
+                user_options_for_tag = user.targets[current_target].setdefault(data, None)
                 bot.edit_message_text(chat_id=user.tg_id,
                                       message_id=call.message.id,
                                       text=text_messages[f'{Tags[data].name}-target'],
-                                      reply_markup=get_keyboard_for_tag(user, Tags[data], 'target',
+                                      reply_markup=get_keyboard_for_tag(Tags[data], 'target',
                                                                                 user_options_for_tag))
 
                 if Tags[data] not in tags_with_keyboard:
-                    user_state[user.tg_id] = State[f'ASK_TARGETS_{data}']
-                    messages_to_delete[user.tg_id] = [call.message.id]
+                    user.state = State[f'ASK_TARGETS_{data}']
+                    user.update_messages_to_delete(call.message.id)
 
             elif data == 'chosen_tags':
-                current_target = non_tags_targets[user.tg_id].pop(0)
-                target = get_one_target(current_target)
-                target.users_hold[user.tg_id] = temp_user_tags_for_current_target[user.tg_id][1]
-                update_user_target_wishlist(target)
-                del temp_user_tags_for_current_target[user.tg_id]
+                current_target = user.not_tagged_targets.pop(0)
+                update_user_targets(user)
 
-                if len(non_tags_targets[user.tg_id]) == 0:
-                    del non_tags_targets[user.tg_id]
+                if len(user.not_tagged_targets) == 0:
+                    user.not_tagged_targets = None
+
+                    log = f' || Find people! {user.print_user()}\n'
+                    now = str(datetime.now())
+                    with open('bot.logs', 'a') as log_file:
+                            log_file.write(now + log)
 
                     preview_disabled = LinkPreviewOptions(True)
-                    print('temp_user_tags', temp_user_tags)
-                    print('temp_user_targets', temp_user_targets)
-                    print('temp_user_tags_for_current_target', temp_user_tags_for_current_target)
-                    print('user_state', user_state)
-                    print('non_tags_targets', non_tags_targets)
-                    print('messages_to_delete', messages_to_delete)
-                    for tar in user.targets:
+                    for target in user.targets:
 
                         bot.send_message(chat_id=user.tg_id,
-                                         text=print_results(tar, find_people(tar, user),
-                                                            target.users_hold[user.tg_id]),
+                                         text=print_results(target_name=target, 
+                                                            people=find_people_by_target(target, user),
+                                                            tags_for_target=user.targets[target]),
                                          parse_mode='MarkdownV2',
                                          link_preview_options=preview_disabled)
                     bot.delete_message(chat_id=user.tg_id,
                                        message_id=call.message.id)
                 else:
-                    current_target = non_tags_targets.setdefault(user.tg_id, user.targets)[0]
-                    user_options_for_target = get_target_options_for_user(current_target, user.tg_id)
-                    if not user_options_for_target:
-                        user_options_for_target = [current_target, {}]
-                    temp_user_tags_for_current_target[user.tg_id] = user_options_for_target
-
+                    user_options_for_target = user.targets[current_target]
                     bot.edit_message_text(chat_id=user.tg_id,
                                           message_id=call.message.id,
                                           text="Выбери, какие характеристики ты хочешь указать"
                                                f"для цели\n{Targets[current_target].value}.",
-                                          reply_markup=get_keyboard_tags('target', user_options_for_target[1]))
+                                          reply_markup=get_keyboard_tags('target', user_options_for_target))
 
     elif len(parsed_data) == 3:
         flag, tag, value = parsed_data
 
         if flag == 'me':
             if value != 'None':
-                temp_user_tags[user.tg_id][tag] = value
+                user.tags[tag] = value
             else:
-                del temp_user_tags[user.tg_id][tag]
+                del user.tags[tag]
 
             bot.edit_message_text(chat_id=user.tg_id,
                                   message_id=call.message.id,
                                   text='Расскажи что-нибудь о себе',
-                                  reply_markup=get_keyboard_tags('me', temp_user_tags[user.tg_id]))
+                                  reply_markup=get_keyboard_tags('me', user.tags))
         
         elif flag == 'target':
-            current_target = non_tags_targets[user.tg_id][0]
+            current_target = user.not_tagged_targets[0]
+            
             if value != 'None':
-                temp_user_tags_for_current_target[user.tg_id][1][tag] = value
+                user.targets[current_target][tag] = value
             else:
-                del temp_user_tags_for_current_target[user.tg_id][1][tag]
+                del user.targets[current_target][tag]
 
-            user_options_for_target = temp_user_tags_for_current_target[user.tg_id][1]
-
+            user_options_for_target = user.targets[current_target]
             bot.edit_message_text(chat_id=user.tg_id,
                                   message_id=call.message.id,
                                   text="Выбери, какие характеристики ты хочешь указать"
